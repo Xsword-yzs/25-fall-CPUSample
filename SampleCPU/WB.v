@@ -1,4 +1,6 @@
 `include "lib/defines.vh"
+// 将我们的结果写回寄存器
+// 从MEM/WB流水线寄存器中读取数据并将它写回图中部的寄存器堆中。
 module WB(
     input wire clk,
     input wire rst,

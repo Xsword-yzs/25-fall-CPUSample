@@ -1,4 +1,6 @@
 `include "lib/defines.vh"
+// 访问内存操作
+// 可能从EX/MEM流水线寄存器中得到地址读取数据寄存器，并将数据存入MEM/WB流水线寄存器。
 module MEM(
     input wire clk,
     input wire rst,
@@ -6,11 +8,15 @@ module MEM(
     input wire [`StallBus-1:0] stall,
 
     input wire [`EX_TO_MEM_WD-1:0] ex_to_mem_bus,
+
     input wire [31:0] data_sram_rdata,
+
     input wire [3:0] data_ram_sel,
+
     input wire [`LoadBus-1:0] ex_load_bus,
 
     output wire [`MEM_TO_WB_WD-1:0] mem_to_wb_bus,
+    
     output wire [`MEM_TO_RF_WD-1:0] mem_to_rf_bus
 );
     reg [`LoadBus-1:0] ex_load_bus_r;

@@ -1,4 +1,6 @@
 `include "lib/defines.vh"
+// 指令解码，同时读取寄存器
+// IF/ID阶段可能会取出经符号扩展为32位的立即数和两个从寄存器中读取的数，放入ID/EX流水线寄存器
 module ID(
     input wire clk,
     input wire rst,
@@ -86,9 +88,9 @@ module ID(
     wire [15:0] imm;
     wire [25:0] instr_index;
     wire [19:0] code;
-    wire [4:0] base;
-    wire [15:0] offset;
-    wire [2:0] sel;
+    wire [4:0] base;//基址
+    wire [15:0] offset;//偏移
+    wire [2:0] sel;//选择信号
 
     wire [63:0] op_d, func_d;
     wire [31:0] rs_d, rt_d, rd_d, sa_d;
@@ -143,72 +145,140 @@ module ID(
     assign offset = inst[15:0];
     assign sel = inst[2:0];
 
-    wire inst_ori, inst_lui, inst_addiu, inst_beq;
-    wire inst_subu, inst_jr, inst_jal, inst_addu;
-    wire inst_bne, inst_sll, inst_or, inst_xor , inst_lw, inst_sw;
-    wire inst_sltiu, inst_lb, inst_lbu, inst_lh;
-    wire inst_lhu, inst_sb, inst_sh;
-    wire inst_add, inst_addi;
-    wire inst_sub, inst_slt, inst_slti, inst_sltu;
+    // 算术运算指令
+    wire inst_addu; // 将寄存器 rs 的值与寄存器 rt 的值相加，结果写入 rd 寄存器中。
+    wire inst_addiu;// 将寄存器 rs 的值与有符号扩展 至 32 位的立即数 imm 相加，结果写入 rt 寄存器中。
+    wire inst_add;  // 将寄存器 rs 的值与寄存器 rt 的值相加，结果写入寄存器 rd 中。
+                    // 如果产生溢出，则触发整型溢出例外（IntegerOverflow）。
+    wire inst_addi; // 将寄存器 rs 的值与有符号扩展至 32 位的立即数 imm 相加，结果写入 rt 寄存器中。
+                    // 如果产生溢出，则触发整型溢出例外（IntegerOverflow）。
+
+
+    wire inst_sub;  //将寄存器 rs 的值与寄存器 rt 的值相减，结果写入 rd 寄存器中。
+                    // 如果产生溢出，则触发整型溢出例外（IntegerOverflow）。
+    wire inst_subu; // 将寄存器 rs 的值与寄存器 rt 的值相减，结果写入 rd 寄存器中。
+
+
+    wire inst_slt;  //将寄存器 rs 的值与寄存器 rt 中的值进行有符号数比较，
+                    // 如果寄存器 rs 中的值小，则寄存器 rd 置 1；否则寄存器 rd 置 0。
+    wire inst_slti; //将寄存器 rs 的值与有符号扩展至 32 位的立即数 imm 进行有符号数比较，
+                    // 如果寄存器 rs 中的值小，则寄存器 rt 置 1；否则寄存器 rt 置 0。
+    wire inst_sltu; // 将寄存器 rs 的值与寄存器 rt 中的值进行无符号数比较，
+                     // 如果寄存器 rs 中的值小，则寄存器 rd 置 1；否则寄存器 rd 置 0。
+    wire inst_sltiu;// 将寄存器 rs 的值与有符号扩展至 32 位的立即数 imm 进行无符号数比较，
+                    // 如果寄存器 rs 中的值小，则寄存器 rt 置 1；否则寄存器 rt 置 0。
+
+// 逻辑运算指令
+    wire inst_ori;  // 寄存器 rs 中的值与 0 扩展至 32 位的立即数 imm 按位逻辑或，结果写入寄存器 rt 中。
+    wire inst_lui;  // 将 16 位立即数 imm 写入寄存器 rt 的高 16 位，寄存器 rt 的低 16 位置 0。
+    wire inst_or;   // 寄存器 rs 中的值与寄存器 rt 中的值按位逻辑或，结果写入寄存器 rd 中。
+    wire inst_xor;  // 寄存器 rs 中的值与 0 扩展至 32 位的立即数 imm 按位逻辑或，结果写入寄存器 rt 中。
+
+
+// 移位指令
+    wire inst_sll;  // 由立即数 sa 指定移位量，对寄存器 rt 的值进行逻辑左移，结果写入寄存器 rd 中。
+
+// 分支跳转指令
+    wire inst_beq;  // 如果寄存器 rs 的值等于寄存器 rt 的值则转移，否则顺序执行。
+                    // 转移目标由立即数 offset 左移 2 位并进行有符号扩展的值加上该分支指令对应的延迟槽指令的 PC 计算得到。
+    wire inst_bne;  // 如果寄存器 rs 的值不等于寄存器 rt 的值则转移，否则顺序执行。
+                    // 转移目标由立即数 offset 左移 2位并进行有符号扩展的值
+                    // 加上该分支指令对应的延迟槽指令的 PC 计算得到。
+    wire inst_jr;   // 无条件跳转。跳转目标为寄存器 rs 中的值。
+    wire inst_jal;  // 无条件跳转。跳转目标由该分支指令对应的延迟槽指令的 PC 的最高 4 位与立即数 instr_index 左移2 位后的值拼接得到。
+                    // 同时将该分支对应延迟槽指令之后的指令的 PC 值保存至第 31 号通用寄存器中。
+
+//访存指令
+    wire inst_lw;   // 将 base 寄存器的值加上符号扩展后的立即数 offset 得到访存的虚地址，
+                    // 如果地址不是 4 的整数倍则触发地址错例外，
+                    // 否则据此虚地址从存储器中读取连续 4 个字节的值，写入到 rt 寄存器中。
+    wire inst_sw;   // 将 base 寄存器的值加上符号扩展后的立即数 offset 得到访存的虚地址，
+                    // 如果地址不是 4 的整数倍则触发地址错例外，
+                    // 否则据此虚地址将 rt 寄存器存入存储器中。
+
+    wire inst_lb;   // 将 base 寄存器的值加上符号扩展后的立即数 offset 得到访存的虚地址,
+                    // 据此虚地址从存储器中读取 1 个字节的值并进行符号扩展，写入到 rt 寄存器中。
+    wire inst_lbu;  // 将 base 寄存器的值加上符号扩展后的立即数 offset 得到访存的虚地址，
+                    // 据此虚地址从存储器中读取 1 个字节的值并进行 0 扩展，写入到 rt 寄存器中。
+    wire inst_lh;   // 将 base 寄存器的值加上符号扩展后的立即数 offset 得到访存的虚地址，如果地址不是 2 的整数倍
+                    // 则触发地址错例外，否则据此虚地址从存储器中读取连续 2 个字节的值并进行符号扩展，写入到rt 寄存器中。
+
+    wire inst_lhu;  // 将 base 寄存器的值加上符号扩展后的立即数 offset 得到访存的虚地址，如果地址不是 2 的整数倍则触发地址错例外，
+                    // 否则据此虚地址从存储器中读取连续 2 个字节的值并进行 0 扩展，写入到 rt寄存器中。
+    wire inst_sb;   // 将 base 寄存器的值加上符号扩展后的立即数 offset 得到访存的虚地址，据此虚地址将 rt 寄存器的最低字节存入存储器中。
+    wire inst_sh;   // 将 base 寄存器的值加上符号扩展后的立即数 offset 得到访存的虚地址，如果地址不是 2 的整数倍则触发地址错例外，
+                    // 否则据此虚地址将 rt 寄存器的低半字存入存储器中。
+
+    // 数据移动指令
 
     wire op_add, op_sub, op_slt, op_sltu;
     wire op_and, op_nor, op_or, op_xor;
     wire op_sll, op_srl, op_sra, op_lui;
 
+    // 6-64译码器
     decoder_6_64 u0_decoder_6_64(
     	.in  (opcode  ),
         .out (op_d )
     );
-
+    
+    // 6-64译码器
     decoder_6_64 u1_decoder_6_64(
     	.in  (func  ),
         .out (func_d )
     );
     
+    // 5-32译码器
     decoder_5_32 u0_decoder_5_32(
     	.in  (rs  ),
         .out (rs_d )
     );
-
+    
+    // 5-32译码器
     decoder_5_32 u1_decoder_5_32(
     	.in  (rt  ),
         .out (rt_d )
     );
 
     
-    assign inst_ori     = op_d[6'b00_1101];
-    assign inst_lui     = op_d[6'b00_1111];
+    // 算术运算指令
     assign inst_addiu   = op_d[6'b00_1001];
-    assign inst_beq     = op_d[6'b00_0100];
-
-    assign inst_subu    = op_d[6'b00_0000] & func_d[6'b10_0011];
-    assign inst_jr      = op_d[6'b00_0000] & func_d[6'b00_1000];
-    assign inst_jal     = op_d[6'b00_0011];
     assign inst_addu    = op_d[6'b00_0000] & func_d[6'b10_0001];
-    
-    assign inst_bne     = op_d[6'b00_0101];
-    assign inst_sll     = op_d[6'b00_0000] & func_d[6'b00_0000];
-    assign inst_or      = op_d[6'b00_0000] & func_d[6'b10_0101];
-    
-    assign inst_xor     = op_d[6'b00_0000] & func_d[6'b10_0110];
-    assign inst_lw      = op_d[6'b10_0011];
-    assign inst_sw      = op_d[6'b10_1011];
-
     assign inst_add     = op_d[6'b00_0000] & func_d[6'b10_0000];
     assign inst_addi    = op_d[6'b00_1000];
     assign inst_sub     = op_d[6'b00_0000] & func_d[6'b10_0010];
-    
+    assign inst_subu    = op_d[6'b00_0000] & func_d[6'b10_0011];
     assign inst_slt     = op_d[6'b00_0000] & func_d[6'b10_1010];
     assign inst_slti    = op_d[6'b00_1010];
     assign inst_sltu    = op_d[6'b00_0000] & func_d[6'b10_1011];
     assign inst_sltiu   = op_d[6'b00_1011];
 
-    assign inst_lb      = 1'b0;
-    assign inst_lbu     = 1'b0;
-    assign inst_lh      = 1'b0;
-    assign inst_lhu     = 1'b0;
-    assign inst_sb      = 1'b0;
-    assign inst_sh      = 1'b0;
+     // 逻辑运算指令
+    assign inst_ori     = op_d[6'b00_1101];
+    assign inst_lui     = op_d[6'b00_1111];
+    assign inst_or      = op_d[6'b00_0000] & func_d[6'b10_0101];
+    assign inst_xor     = op_d[6'b00_0000] & func_d[6'b10_0110];    
+    
+    // 移位指令
+    assign inst_sll     = op_d[6'b00_0000] & func_d[6'b00_0000];
+
+
+    // 分支跳转指令
+    assign inst_beq     = op_d[6'b00_0100];
+    assign inst_bne     = op_d[6'b00_0101];    
+    assign inst_jr      = op_d[6'b00_0000] & func_d[6'b00_1000];
+    assign inst_jal     = op_d[6'b00_0011];
+
+
+    // 访存指令   
+    assign inst_lw      = op_d[6'b10_0011];
+    assign inst_sw      = op_d[6'b10_1011];
+
+    assign inst_lb      = op_d[6'b10_0000];
+    assign inst_lbu     = op_d[6'b10_0100];
+    assign inst_lh      = op_d[6'b10_0001];
+    assign inst_lhu     = op_d[6'b10_0101];
+    assign inst_sb      = op_d[6'b10_1000];
+    assign inst_sh      = op_d[6'b10_1001];
 
     // rs to reg1
     assign sel_alu_src1[0] = inst_ori | inst_addiu | inst_subu | inst_jr | inst_addu | inst_or | inst_xor | inst_lw | inst_sw;

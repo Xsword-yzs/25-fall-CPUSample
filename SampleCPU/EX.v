@@ -1,4 +1,8 @@
 `include "lib/defines.vh"
+// 执行运算或计算地址（反正就是和ALU相关）
+// 从ID/EX流水线寄存器中读取由寄存器1传过来的值和寄存器2传过来的值
+// （或寄存器1传过来的值和符号扩展过后的立即数的值），
+// 并用ALU将它们相加，结果值存入EX/MEM流水线寄存器。
 module EX(
     input wire clk,
     input wire rst,

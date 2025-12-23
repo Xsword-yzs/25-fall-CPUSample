@@ -1,4 +1,8 @@
 `include "lib/defines.vh"
+// 从内存中取指令
+// 使用PC中的地址，从存储器中读取数据，然后将数据放入IF/ID流水线寄存器中。
+// PC地址+4然后写回PC以便为下个时钟周期做好准备，
+// 增加后的地址同时也存入了IF/ID流水线寄存器以备后面的指令使用。
 module IF(
     input wire clk,
     input wire rst,
