@@ -1,4 +1,8 @@
 `include "lib/defines.vh"
+
+// 对内存访问 load和store
+// 可能从EX/MEM流水线寄存器中得到地址读取数据寄存器，并将数据存入MEM/WB流水线寄存器
+
 module MEM(
     input wire clk,
     input wire rst,
