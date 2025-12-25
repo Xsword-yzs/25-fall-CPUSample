@@ -1,4 +1,7 @@
 `include "lib/defines.vh"
+
+//P'64之前注意跳转
+
 module IF(
     input wire clk,
     input wire rst,

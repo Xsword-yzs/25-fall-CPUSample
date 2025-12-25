@@ -1,4 +1,8 @@
 `include "lib/defines.vh"
+
+//alu模块已经提供，基本通过给alu提供控制信号就可以完成逻辑和算术运算
+//对于需要访存的指令在此段发出访存请求
+
 module EX(
     input wire clk,
     input wire rst,

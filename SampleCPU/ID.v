@@ -1,4 +1,11 @@
 `include "lib/defines.vh"
+
+/*  
+    - 需要在该级进行指令译码
+    - 从寄存器中读取需要的数据
+    - 完成数据相关处理
+    - 生成发给EX段的控制信号
+*/
 module ID(
     input wire clk,
     input wire rst,
