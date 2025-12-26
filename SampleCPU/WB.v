@@ -1,4 +1,8 @@
 `include "lib/defines.vh"
+
+// 将结果写回寄存器
+// 从MEM/WB流水线临时寄存器中读取数据并将它写回通用寄存器中
+
 module WB(
     input wire clk,
     input wire rst,
